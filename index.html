@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -48,7 +49,7 @@
         <div id="geoBannerBook" class="geo-banner">📍 בודק מיקום...</div>
         <form id="bookForm" onsubmit="handleBook(event)" class="disabled">
             <input type="text" id="techName" placeholder="שם טכנאי" required>
-            <input type="text" id="techId" inputmode="numeric" placeholder="ת.ז טכנאי" required>
+            <input type="text" id="techId" inputmode="numeric" placeholder="ת.ז טכנאי (9 ספרות)" required pattern="\d{9}" maxlength="9" oninput="this.value=this.value.replace(/\D/g,'')" title="יש להזין בדיוק 9 ספרות">
             <input type="text" id="custName" placeholder="שם לקוח" required>
             <input type="text" id="custAddress" placeholder="כתובת לקוח" required>
             <div style="border:1px solid var(--slate-200); border-radius:8px; padding:12px; margin-bottom:16px;">
@@ -113,33 +114,28 @@
 <script>
     // JSONBin Configuration
     const JSONBIN_API_KEY = '$2a$10$o5TG115afplVVQHbHpllSetPPkMGXEM1BN5dgls6w6HMmQ2QOamY2';
-    const JSONBIN_BIN_ID = '69b86bcfb7ec241ddc74757a'; // Bin created and active
+    const JSONBIN_BIN_ID = '69b86bcfb7ec241ddc74757a';
     const STORAGE_KEY = 'queue_mgmt_app_v1';
     let appData = { queue: [], anchor: null, gpsOverride: false, adminPassword: null, staffPassword: null, deletedItems: [] };
+    let isAdminLoggedIn = false;
 
     async function createJsonBinIfNeeded() {
-        if (JSONBIN_BIN_ID) return; // Already have a bin
+        if (JSONBIN_BIN_ID) return;
         try {
             const res = await fetch('https://api.jsonbin.io/v3/b', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': JSONBIN_API_KEY
-                },
+                headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
                 body: JSON.stringify({ queue: [], anchor: null, gpsOverride: false, adminPassword: null, staffPassword: null, deletedItems: [] })
             });
             if (res.ok) {
                 const data = await res.json();
                 console.log('JSONBin Bin Created:', data.metadata.id);
-                alert('✅ JSONBin bin created successfully!\n\nBin ID: ' + data.metadata.id + '\n\nPlease update the JSONBIN_BIN_ID in the code with this ID.');
+                alert('✅ JSONBin bin created successfully!\n\nBin ID: ' + data.metadata.id);
             }
-        } catch (e) {
-            console.error('Failed to create JSONBin bin:', e);
-        }
+        } catch (e) { console.error('Failed to create JSONBin bin:', e); }
     }
 
     async function loadData() {
-        // Try loading from JSONBin first
         if (JSONBIN_BIN_ID) {
             try {
                 const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
@@ -151,21 +147,15 @@
                     console.log('✅ Data loaded from JSONBin');
                     return;
                 }
-            } catch (e) {
-                console.error('Failed to load from JSONBin:', e);
-            }
+            } catch (e) { console.error('Failed to load from JSONBin:', e); }
         }
-        
-        // Fallback to localStorage
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return;
         try {
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === 'object') appData = normalizeData(parsed);
             console.log('✅ Data loaded from localStorage');
-        } catch (e) {
-            console.error('Failed to parse local data', e);
-        }
+        } catch (e) { console.error('Failed to parse local data', e); }
     }
 
     function normalizeData(data) {
@@ -191,43 +181,34 @@
     }
 
     async function saveData() {
-        // Save to localStorage
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-        
-        // Try saving to JSONBin
         if (JSONBIN_BIN_ID) {
             try {
                 const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': JSONBIN_API_KEY
-                    },
+                    headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
                     body: JSON.stringify(appData)
                 });
-                if (res.ok) {
-                    console.log('✅ Data saved to JSONBin');
-                }
-            } catch (e) {
-                console.error('Failed to save to JSONBin:', e);
-            }
+                if (res.ok) console.log('✅ Data saved to JSONBin');
+            } catch (e) { console.error('Failed to save to JSONBin:', e); }
         }
-        
         renderAll();
     }
 
     function renderAll() {
         const getOrderStatusColor = (status) => {
-            if (status === 'מוכן') return '#22c55e'; // green
-            if (status === 'בהכנה') return '#eab308'; // yellow
-            return '#f97316'; // orange for ממתין
+            if (status === 'מוכן') return '#22c55e';
+            if (status === 'בהכנה') return '#eab308';
+            return '#f97316';
         };
+
+        // ===== תצוגת צפייה: ללא ת.ז =====
         document.getElementById('queue-list').innerHTML = (appData.queue || []).length
             ? appData.queue.map(i => `
                 <div class="item-card">
                     <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
                         <div style="flex:1; min-width:0; flex-basis:100%;">
-                            <b>${escapeHtml(i.techName)}</b> (${escapeHtml(i.techId || '')}) - ${escapeHtml(i.custName)}
+                            <b>${escapeHtml(i.techName)}</b> - ${escapeHtml(i.custName)}
                             <div style="font-size:12px; color:var(--slate-500); margin-top:6px;">
                                 כתובת: ${escapeHtml(i.custAddress || '')}
                             </div>
@@ -245,24 +226,21 @@
                 </div>
             `).join('')
             : 'התור ריק';
+
         const ad = document.getElementById('anchorDisplay');
         if(ad) { ad.innerHTML = appData.anchor ? "מיקום הוגדר בשרת ✓" : "מיקום לא מוגדר"; ad.style.color = appData.anchor ? "green" : "red"; }
         const og = document.getElementById('gpsOverrideToggle');
         if (og) og.checked = !!appData.gpsOverride;
-        
+
+        // ===== תצוגת מנהל: עם ת.ז =====
         const al = document.getElementById('admin-list');
         if(al) al.innerHTML = (appData.queue || []).map((i, idx) => {
-            const getOrderStatusColor = (status) => {
-                if (status === 'מוכן') return '#22c55e';
-                if (status === 'בהכנה') return '#eab308';
-                return '#f97316';
-            };
             const createdAtStr = i.createdAt ? formatDateHebrewLong(i.createdAt) : 'לא ידוע';
             return `
-            <div class="item-card" draggable="true" ondragstart="dragStart(event, '${String(i.id).replace(/'/g, "\\'")}')" ondragover="dragOver(event)" ondrop="dragDrop(event, '${String(i.id).replace(/'/g, "\\'")}')" style="cursor:move; opacity:${1}; transition:opacity 0.2s;">
+            <div class="item-card" draggable="true" ondragstart="dragStart(event, '${String(i.id).replace(/'/g, "\\'")}')" ondragover="dragOver(event)" ondrop="dragDrop(event, '${String(i.id).replace(/'/g, "\\'")}')" style="cursor:move; transition:opacity 0.2s;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
                     <div style="flex:1; min-width:0;">
-                        <b>${escapeHtml(i.techName)}</b> (${escapeHtml(i.techId || '')}) - ${escapeHtml(i.custName)}
+                        <b>${escapeHtml(i.techName)}</b> <span style="background:#4f46e5;color:white;padding:2px 7px;border-radius:4px;font-size:12px;">ת.ז: ${escapeHtml(i.techId || '')}</span> - ${escapeHtml(i.custName)}
                         <div style="font-size:12px; color:var(--slate-500); margin-top:6px;">
                             כתובת: ${escapeHtml(i.custAddress || '')}
                         </div>
@@ -294,13 +272,9 @@
                     <div class="item-card" style="border-left:4px solid #ef4444;">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
                             <div style="flex:1;">
-                                <b>${escapeHtml(i.techName)}</b> - ${escapeHtml(i.custName)}
-                                <div style="font-size:12px; color:var(--slate-500); margin-top:6px;">
-                                    ${escapeHtml(i.custAddress || '')}
-                                </div>
-                                <div style="font-size:11px; color:#999; margin-top:6px;">
-                                    ❌ נמחק ב: ${i.deletedAt ? formatDateHebrewLong(i.deletedAt) : 'לא ידוע'}
-                                </div>
+                                <b>${escapeHtml(i.techName)}</b> <span style="background:#4f46e5;color:white;padding:2px 7px;border-radius:4px;font-size:12px;">ת.ז: ${escapeHtml(i.techId || '')}</span> - ${escapeHtml(i.custName)}
+                                <div style="font-size:12px; color:var(--slate-500); margin-top:6px;">${escapeHtml(i.custAddress || '')}</div>
+                                <div style="font-size:11px; color:#999; margin-top:6px;">❌ נמחק ב: ${i.deletedAt ? formatDateHebrewLong(i.deletedAt) : 'לא ידוע'}</div>
                             </div>
                         </div>
                         <div style="display:flex; gap:6px;">
@@ -311,6 +285,7 @@
                 `).join('') : '<div style="color:var(--slate-500); text-align:center; padding:20px;">הסל ריק</div>'}
             </div>
         `;
+
         renderPasswordSection();
         if (document.getElementById('staff-tools')?.style.display === 'block') {
             renderStaffQueue();
@@ -335,7 +310,7 @@
     }
 
     function forceSetLocation() {
-        appData.anchor = { lat: 32.2003, lng: 34.8911 }; // הקואורדינטות של כפר סבא ששלחת
+        appData.anchor = { lat: 32.2003, lng: 34.8911 };
         saveData();
         alert("המיקום הוגדר ידנית בהצלחה!");
     }
@@ -348,10 +323,7 @@
     }
 
     function requestGpsPermission() {
-        if (!('geolocation' in navigator)) {
-            setGpsAdminStatus('הדפדפן לא תומך ב-GPS.', false);
-            return;
-        }
+        if (!('geolocation' in navigator)) { setGpsAdminStatus('הדפדפן לא תומך ב-GPS.', false); return; }
         setGpsAdminStatus('מבקש הרשאה ל-GPS...', true);
         navigator.geolocation.getCurrentPosition(
             () => setGpsAdminStatus('ההרשאה ל-GPS אושרה ✓', true),
@@ -361,10 +333,7 @@
     }
 
     function setAnchorFromCurrentLocation() {
-        if (!('geolocation' in navigator)) {
-            setGpsAdminStatus('הדפדפן לא תומך ב-GPS.', false);
-            return;
-        }
+        if (!('geolocation' in navigator)) { setGpsAdminStatus('הדפדפן לא תומך ב-GPS.', false); return; }
         setGpsAdminStatus('קובע מיקום מחסן לפי המיקום הנוכחי...', true);
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
@@ -380,23 +349,17 @@
     function setGpsOverride(enabled) {
         appData.gpsOverride = !!enabled;
         saveData();
-        if (appData.gpsOverride) {
-            setGpsAdminStatus('מצב חריג פעיל: ניתן להצטרף בלי GPS.', true);
-        } else {
-            setGpsAdminStatus('מצב חריג כבוי.', true);
-        }
+        setGpsAdminStatus(appData.gpsOverride ? 'מצב חריג פעיל: ניתן להצטרף בלי GPS.' : 'מצב חריג כבוי.', true);
     }
 
     function checkLocation() {
         const form = document.getElementById('bookForm');
         if (form) form.classList.add('disabled');
-
         if (appData.gpsOverride) {
             updateBanner('ok', 'מצב חריג: ניתן להצטרף בלי GPS ✓');
             if (form) form.classList.remove('disabled');
             return;
         }
-
         if(!appData.anchor) { updateBanner('error', 'מנהל חייב להגדיר מיקום'); return; }
         if (!('geolocation' in navigator)) { updateBanner('error', 'הדפדפן לא תומך ב-GPS'); return; }
         navigator.geolocation.getCurrentPosition(pos => {
@@ -415,28 +378,28 @@
     }
 
     function updateBanner(cls, txt) { let b = document.getElementById('geoBannerBook'); b.className = 'geo-banner ' + cls; b.textContent = txt; }
+
     function showTab(t) {
         document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
         document.getElementById('tab-' + t).classList.add('active');
         if(t === 'book') checkLocation();
     }
+
     function loginStaff() {
         const entered = document.getElementById('staffPass').value;
-        if (!appData.staffPassword) {
-            alert('מנהל טרם הגדיר סיסמה לצוות.');
-            return;
-        }
+        if (!appData.staffPassword) { alert('מנהל טרם הגדיר סיסמה לצוות.'); return; }
         if (entered === appData.staffPassword) {
             document.getElementById('staff-tools').style.display='block';
             renderStaffQueue();
-        } else {
-            alert('סיסמה שגויה.');
-        }
+        } else { alert('סיסמה שגויה.'); }
     }
+
     function logoutStaff() {
         document.getElementById('staffPass').value = '';
         document.getElementById('staff-tools').style.display='none';
     }
+
+    // ===== תצוגת צוות: ללא ת.ז =====
     function renderStaffQueue() {
         const list = document.getElementById('staff-queue-list');
         if (!list) return;
@@ -445,7 +408,7 @@
             list.innerHTML = '<div style="color:var(--slate-500); font-size:14px; text-align:center;">התור ריק</div>';
             return;
         }
-        list.innerHTML = queue.map((item, idx) => {
+        list.innerHTML = queue.map((item) => {
             const current = item.orderStatus || 'ממתין';
             return `
             <div class="item-card">
@@ -453,9 +416,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
                         <div style="flex:1;">
                             <b style="font-size:15px;">${escapeHtml(item.techName)}</b> - ${escapeHtml(item.custName)}
-                            <div style="font-size:12px; color:var(--slate-500); margin-top:4px;">
-                                ${escapeHtml(item.custAddress || '')}
-                            </div>
+                            <div style="font-size:12px; color:var(--slate-500); margin-top:4px;">${escapeHtml(item.custAddress || '')}</div>
                             ${renderItemsLine(item.items)}
                         </div>
                     </div>
@@ -463,15 +424,15 @@
                 <div style="background:#f1f5f9; padding:10px; border-radius:6px; margin-bottom:10px;">
                     <p style="font-size:11px; margin:0 0 8px 0; color:var(--slate-500); font-weight:600;">סטטוס הזמנה:</p>
                     <div style="display:flex; gap:6px;">
-                        <button onclick="setOrderStatus('${String(item.id).replace(/'/g, "\\'")}', 'ממתין')" 
+                        <button onclick="setOrderStatus('${String(item.id).replace(/'/g, "\\'")}', 'ממתין')"
                                 style="flex:1; background:#f97316; color:white; border:${current === 'ממתין' ? '3px solid white' : 'none'}; padding:6px; border-radius:4px; cursor:pointer; font-weight:${current === 'ממתין' ? '700' : '600'}; font-size:12px; box-shadow:${current === 'ממתין' ? '0 0 0 2px #f97316' : 'none'};">
                             ממתין
                         </button>
-                        <button onclick="setOrderStatus('${String(item.id).replace(/'/g, "\\'")}', 'בהכנה')" 
+                        <button onclick="setOrderStatus('${String(item.id).replace(/'/g, "\\'")}', 'בהכנה')"
                                 style="flex:1; background:#eab308; color:white; border:${current === 'בהכנה' ? '3px solid white' : 'none'}; padding:6px; border-radius:4px; cursor:pointer; font-weight:${current === 'בהכנה' ? '700' : '600'}; font-size:12px; box-shadow:${current === 'בהכנה' ? '0 0 0 2px #eab308' : 'none'};">
                             בהכנה
                         </button>
-                        <button onclick="setOrderStatus('${String(item.id).replace(/'/g, "\\'")}', 'מוכן')" 
+                        <button onclick="setOrderStatus('${String(item.id).replace(/'/g, "\\'")}', 'מוכן')"
                                 style="flex:1; background:#22c55e; color:white; border:${current === 'מוכן' ? '3px solid white' : 'none'}; padding:6px; border-radius:4px; cursor:pointer; font-weight:${current === 'מוכן' ? '700' : '600'}; font-size:12px; box-shadow:${current === 'מוכן' ? '0 0 0 2px #22c55e' : 'none'};">
                             מוכן
                         </button>
@@ -480,6 +441,7 @@
             </div>
         `; }).join('');
     }
+
     function setOrderStatus(id, orderStatus) {
         const item = (appData.queue || []).find(x => String(x.id) === String(id));
         if (!item) return;
@@ -489,13 +451,7 @@
         saveData();
         renderStaffQueue();
     }
-    function setItemStatus(id, status) {
-        const item = (appData.queue || []).find(x => String(x.id) === String(id));
-        if (!item) return;
-        item.status = status;
-        saveData();
-        renderStaffQueue();
-    }
+
     function loginAdmin() {
         const entered = document.getElementById('adminPass').value;
         if (!appData.adminPassword) {
@@ -506,16 +462,17 @@
             saveData();
             document.getElementById('adminPass').value = '';
             document.getElementById('admin-tools').style.display='block';
+            isAdminLoggedIn = true;
             renderPasswordSection();
             return;
         }
         if (entered === appData.adminPassword) {
             document.getElementById('admin-tools').style.display='block';
+            isAdminLoggedIn = true;
             renderPasswordSection();
-        } else {
-            alert('סיסמה שגויה.');
-        }
+        } else { alert('סיסמה שגויה.'); }
     }
+
     function changeAdminPassword() {
         const newPass = prompt('הגדר סיסמה חדשה למנהל:');
         if (!newPass) return;
@@ -524,6 +481,7 @@
         alert('סיסמת המנהל שונתה בהצלחה.');
         renderPasswordSection();
     }
+
     function setStaffPassword() {
         const newPass = prompt('הגדר סיסמה לצוות:');
         if (!newPass) return;
@@ -532,15 +490,15 @@
         alert('סיסמת הצוות הוגדרה בהצלחה.');
         renderPasswordSection();
     }
+
     function renderPasswordSection() {
         const el = document.getElementById('passwordStatus');
         if (!el) return;
-        const adminStatus = appData.adminPassword ? 'סיסמת מנהל הוגדרה ✓' : 'סיסמת מנהל לא הוגדרה';
-        const staffStatus = appData.staffPassword ? 'סיסמת צוות הוגדרה ✓' : 'סיסמת צוות לא הוגדרה';
-        el.innerHTML = `${adminStatus}<br/>${staffStatus}`;
+        el.innerHTML = `${appData.adminPassword ? 'סיסמת מנהל הוגדרה ✓' : 'סיסמת מנהל לא הוגדרה'}<br/>${appData.staffPassword ? 'סיסמת צוות הוגדרה ✓' : 'סיסמת צוות לא הוגדרה'}`;
         el.style.color = (appData.adminPassword && appData.staffPassword) ? 'green' : 'orange';
     }
-    function deleteItem(id) { 
+
+    function deleteItem(id) {
         const item = appData.queue.find(x => x.id == id);
         if (item) {
             item.deletedAt = Date.now();
@@ -549,6 +507,7 @@
             saveData();
         }
     }
+
     function restoreItem(id) {
         const item = appData.deletedItems.find(x => x.id == id);
         if (item) {
@@ -558,10 +517,12 @@
             saveData();
         }
     }
+
     function permanentlyDeleteItem(id) {
         appData.deletedItems = appData.deletedItems.filter(x => x.id != id);
         saveData();
     }
+
     function moveItem(id, dir) {
         const idx = (appData.queue || []).findIndex(x => String(x.id) === String(id));
         if (idx < 0) return;
@@ -571,16 +532,10 @@
         appData.queue.splice(newIdx, 0, item);
         saveData();
     }
-    
+
     let draggedItemId = null;
-    function dragStart(event, id) {
-        draggedItemId = id;
-        event.dataTransfer.effectAllowed = 'move';
-    }
-    function dragOver(event) {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-    }
+    function dragStart(event, id) { draggedItemId = id; event.dataTransfer.effectAllowed = 'move'; }
+    function dragOver(event) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }
     function dragDrop(event, targetId) {
         event.preventDefault();
         if (!draggedItemId || draggedItemId === targetId) return;
@@ -592,7 +547,7 @@
         draggedItemId = null;
         saveData();
     }
-    
+
     function showAuditLog(id) {
         const item = (appData.queue || []).find(x => String(x.id) === String(id));
         if (!item) return;
@@ -604,9 +559,15 @@
         }).join('\n\n') : 'אין רשומות';
         alert(`היסטוריה של הזמנה:\n${escapeHtml(item.techName)} - ${escapeHtml(item.custName)}\n\n${logText}`);
     }
-    
+
     async function handleBook(e) {
         e.preventDefault();
+        const techIdVal = document.getElementById('techId').value;
+        if (!/^\d{9}$/.test(techIdVal)) {
+            alert('ת.ז חייבת להכיל בדיוק 9 ספרות.');
+            document.getElementById('techId').focus();
+            return;
+        }
         const items = collectItemsFromForm();
         const now = Date.now();
         appData.queue.push({
@@ -638,13 +599,11 @@
         row.style.gridTemplateColumns = '1fr 100px 44px';
         row.style.gap = '8px';
         row.style.marginBottom = '8px';
-        
         let qtyOptions = '';
         for (let i = 1; i <= 100; i++) {
             const selected = qty === String(i) ? 'selected' : '';
             qtyOptions += `<option value="${i}" ${selected}>${i}</option>`;
         }
-        
         row.innerHTML = `
             <input data-item-name="1" type="text" placeholder="פריט" value="${name}" style="margin-bottom:0;">
             <select data-item-qty="1" style="margin-bottom:0; padding:8px; border:1px solid var(--slate-200); border-radius:6px; font-size:14px;">
@@ -690,11 +649,7 @@
     async function exportData() {
         const payload = JSON.stringify(appData, null, 2);
         if (navigator.clipboard?.writeText) {
-            try {
-                await navigator.clipboard.writeText(payload);
-                alert('הנתונים הועתקו ללוח (Clipboard).');
-                return;
-            } catch (_) {}
+            try { await navigator.clipboard.writeText(payload); alert('הנתונים הועתקו ללוח (Clipboard).'); return; } catch (_) {}
         }
         prompt('העתק את ה-JSON:', payload);
     }
@@ -707,9 +662,7 @@
             appData = normalizeData(parsed);
             await saveData();
             alert('ייבוא בוצע בהצלחה.');
-        } catch (e) {
-            alert('JSON לא תקין.');
-        }
+        } catch (e) { alert('JSON לא תקין.'); }
     }
 
     (async () => {
